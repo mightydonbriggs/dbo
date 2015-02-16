@@ -25,10 +25,10 @@ abstract class DataObject
         } elseif (isset ($_SESSION['db'])) {
             static::$_db = $_SESSION['db'];
         } else {
-//            $this->_errors[] = "ERROR: Could not set Database object from session";
             throw new \Exception("ERROR: Could not set Database object from session");
         }
-        
+        $this->_getTableMeta();
+        return $this;
     }
 
     public function getInsertId() {
@@ -79,7 +79,7 @@ abstract class DataObject
      * @return result
      */
     
-    public function saveFromArray ($recordArray) {      
+    public function saveFromArray (array $recordArray) {      
         
         //If a field map is set perform field mapping
         if(count(static::$_fieldMap)) {          
@@ -225,7 +225,7 @@ abstract class DataObject
      * insert fails
      */
     protected function _insert() {
-        $this->_rowColumns['dateCreate'] = time();
+//        $this->_rowColumns['dateCreate'] = time();
         $numFields = count($this->_rowColumns);
         $fieldList = "";
         $valueList = "";
@@ -260,7 +260,7 @@ abstract class DataObject
      
         $this->_setId(); //remove PK field from _rowColumns, and set in object
         $pkName = static::$_primaryKey;  
-        $this->_rowColumns['dateUpdate'] = time();
+//        $this->_rowColumns['dateUpdate'] = time();
         $numFields = count($this->_rowColumns);
         $setList = "";
         $i=1;

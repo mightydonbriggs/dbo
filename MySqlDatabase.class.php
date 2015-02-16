@@ -64,8 +64,6 @@ class MySqlDatabase {
 		$this->_last_query = $sql;
                 self::$_errors = array();
                 if($this->_logQueries) {
-//                    error_log($sql, 3, "/var/log/db.log");
-//                    file_put_contents("/tmp/db.log", $sql ."\n\n", FILE_APPEND) ;
                 }
                 $result = mysqli_query($this->_connection, $sql);
 		if($this->confirm_query($result) === false) {

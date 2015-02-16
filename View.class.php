@@ -31,14 +31,22 @@ class View
     
     public function setTemplate($templateFile) {
         $this->_setTemplate($templateFile);
+        return $this;
     }
     
+    public function setContent($content) {
+        $this->content = $content;
+        return $this;
+    }
     public function render() {
         require($this->_templateFile);
+        return $this;
     }
     
     protected function _setTemplate($template) {
-        $templateFile = realpath($_SESSION['templatePath'] .DIRECTORY_SEPARATOR . $template);
+        if($_SESSION['DBODEBUG']) { print "<pre>Template: " .$_SESSION['viewPath'] .DIRECTORY_SEPARATOR .$template ."</pre>"; }
+        $templateFile = realpath($_SESSION['viewPath'] .DIRECTORY_SEPARATOR . $template);
+        if($_SESSION['DBODEBUG']) { print "<pre>Realpath: " .$templateFile ."</pre>"; }
         
         if($templateFile === false) {
             throw new \Exception("Template file: $template could not be located");
@@ -49,4 +57,3 @@ class View
         $this->_templateFile = $templateFile;
     }
 }
-?>

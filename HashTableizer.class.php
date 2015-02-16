@@ -57,4 +57,3 @@ class HashTableizer extends \DBO\Tableizer
     }
 
 }
-?>
