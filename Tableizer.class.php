@@ -84,7 +84,7 @@ class Tableizer {
             }
             
             if(is_null($columnNumber)) {
-                throw new Exception("Could not find column: $columnName");
+                throw new \Exception("Could not find column: $columnName");
             }
             
             $this->_fieldMeta[$columnNumber]['colTitle'] = trim(htmlentities($title));

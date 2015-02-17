@@ -1,7 +1,12 @@
 <?php
-
 namespace DBO; //Namspace for Don! Briggs Objects
 
+/**
+ * MySqlDatabase: Database abstraction class.
+ * 
+ * This class will abstract access to a MySql database. It is still a work in
+ * progress. All of the debugging will enventually be removed.
+ */
 
 class MySqlDatabase {
 
@@ -9,7 +14,7 @@ class MySqlDatabase {
     
     protected $_dbName;
     protected $_connection;
-    public  $_last_query;
+    public    $_last_query;
     protected $_magic_quotes_active;
     protected $_real_escape_string_exists;
     protected $_logQueries = 0; //Set to 1 to log queries to file
@@ -33,11 +38,11 @@ class MySqlDatabase {
     public function open_connection($hostname, $dbUsername, $dbPassword, $dbName) {
         $this->_connection = mysqli_connect($hostname, $dbUsername, $dbPassword, $dbName);
         if (!$this->_connection) {
-                throw new \Exception("Database _connection failed: " . mysqli_error());
+                throw new \Exception("DBO_ERROR: Database _connection failed: " . mysqli_error());
         } else {
                 $db_select = mysqli_select_db($this->_connection, $dbName);
                 if (!$db_select) {
-                        throw new \Exception("Database selection failed: " . mysqli_error());
+                        throw new \Exception("DBO_ERROR: Database selection failed: " . mysqli_error());
                 }
         }
         $this->_dbName = $dbName;
@@ -60,12 +65,10 @@ class MySqlDatabase {
 	}
 
 	public function query($sql) {
-
 		$this->_last_query = $sql;
                 self::$_errors = array();
-                if($this->_logQueries) {
-                }
                 $result = mysqli_query($this->_connection, $sql);
+   
 		if($this->confirm_query($result) === false) {
                     return false;
                 } else {
@@ -93,6 +96,12 @@ class MySqlDatabase {
      * @return array Array representation of one record
      */
     public function fetch_array($result_set) {
+
+        if (get_class($result_set) != 'mysqli_result') {
+            $msg = "DBO_ERROR: fetch_array requires on parameter of type: mysqli_result.\n"
+                 .   "Actual type submitted was: '" .get_class($result_set) ."'.";
+            throw new \Exception($msg);
+        }       
         $rec = mysqli_fetch_assoc($result_set);
         $metas = mysqli_fetch_fields($result_set);
         $rec = $this->_castFields($rec, $metas);
@@ -106,6 +115,15 @@ class MySqlDatabase {
      * @return array Recordset as an array
      */
     public function fetch_array_set($result_set) {
+        if (get_class($result_set) != 'mysqli_result') {
+            print "<pre>\n";
+//            print_r($result_set);
+//            print "</pre>\n";
+            $msg = "DBO_ERROR: fetch_array_set requires on parameter of type: mysqli_result.\n"
+                 .   "Actual type submitted was: '" .get_class($result_set) ."'.";
+            throw new \Exception($msg);
+        }
+     
         $array_set = array();
         $numRows = $result_set->num_rows;
         for($i=0; $i<$numRows; $i++) {
@@ -127,7 +145,7 @@ class MySqlDatabase {
     private function _castFields($recArray, $metas) {
         if(!is_array($recArray)) {
             var_dump($recArray);
-            throw new \Exception("ERROR: Must pass record array");
+            throw new \Exception("DBO_ERROR: Must pass record array");
         }
         foreach($metas as $meta) {
             $fieldName = $meta->name;
@@ -176,13 +194,18 @@ class MySqlDatabase {
   }
 
     private function confirm_query($result) {
-        if (!$result) {
-            //Query failed
-            array_push(self::$_errors, mysqli_error($this->_connection));
-            return false;
-        } else {
+        if (@get_class($result) == 'mysqli_result'  || $result == true) {       
             //Query succeeded
             return true;
+        } else {
+            //Query failed
+print "<pre>Confirm Query: Failure\n";            
+var_dump($result);
+print_r(debug_print_backtrace());
+print "Class: " .get_class($result) ."<pre>\n";            
+die('bad');            
+            array_push(self::$_errors, mysqli_error($this->_connection));
+            return false;
         }
     }
 
@@ -194,7 +217,7 @@ class MySqlDatabase {
         if (isset ($_SESSION['db'])) {
             return $_SESSION['db'];
         } else {
-            throw new \Exception("ERROR: Could not set Database object from session");
+            throw new \Exception("DBO_ERROR: Could not set Database object from session");
         }
     }
     

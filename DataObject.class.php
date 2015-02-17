@@ -1,6 +1,15 @@
 <?php
-
 namespace DBO; //Namespace for Don! Briggs Objects
+
+/*
+ * DataObject: Abstract Data Access Object
+ * 
+ * This class will allow quick contruction of data objects that interact with
+ * the database. It uses the DBO\DataAccessObject class to interact with the
+ * database. NOTE: Much of the static stuff (ie static::$_db) will be removed
+ * and rewritten with protected variables. The static stuff just did not work
+ * out the way I wanted it to.
+ */
 
 abstract class DataObject
 {
@@ -15,10 +24,10 @@ abstract class DataObject
     protected static $_autoEscape  = true;    //Automatic 'escape' on record write, and 'de-escape' on read.
     
     protected $_rowColumns = null;            //Array holding database column names and data values
-    protected $_id         = null;             //ID of record. (Should in in Record object)
+    protected $_id         = null;            //ID of record. (Should be in Record object)
     protected $_dbErrors   = array();//die
             
-    function __construct($db=null) {
+    public function __construct($db=null) {
         
         if(!is_null($db)) {
             static::$_db = $db;//print_r($errors);
@@ -27,7 +36,7 @@ abstract class DataObject
         } else {
             throw new \Exception("ERROR: Could not set Database object from session");
         }
-        $this->_getTableMeta();
+        $this->_getTableMeta();        
         return $this;
     }
 
@@ -57,14 +66,14 @@ abstract class DataObject
         return $result;
     }
     
-    public function save() {
-        if(is_null($this->_id) || $this->_id == 0) {
+    public function save() {       
+        if(is_null($this->_id) || $this->_id === 0) {
             $result = $this->_insert();
         } else {
             $result = $this->_update();
         }
         if(!$result){
-            $errors = static::$_db->getErrors();
+            $errors = static::$_db->getErrors();        
         }
         return $result;
     }
@@ -80,7 +89,6 @@ abstract class DataObject
      */
     
     public function saveFromArray (array $recordArray) {      
-        
         //If a field map is set perform field mapping
         if(count(static::$_fieldMap)) {          
             $mapFields = true;
@@ -89,15 +97,15 @@ abstract class DataObject
             //Remove any values that are not columns in the database
             $recordArray = array_intersect_key($recordArray, static::$_fieldMeta);            
         }
-        
         //Store final record values in instance variabld
         $this->_rowColumns = $recordArray;
         
-        //Remove primary key from record array before saving
+        //Remove primary key from record array before saving. If this is an update
+        //it will be added back in by save
         $pkName = static::$_primaryKey;
         if(key_exists($pkName, $recordArray)) {
             $this->_id = $recordArray[$pkName];
-            unset($recordArray[$pkName]);
+            unset($this->_rowColumns[$pkName]);           
         }
         
         //Save record and return result
@@ -108,6 +116,7 @@ abstract class DataObject
     public function getAll() {
         $sql = "SELECT * FROM " .static::$_tableName;
         $result = static::$_db->query($sql);
+        $this->_id = null; //Make sure we dont have an old rec id in there
         return $result;
     }
     
@@ -123,7 +132,8 @@ abstract class DataObject
     }
     
     public function getById($id) {
-        assert(is_int($id));
+        $fieldMeta= static::_getTableMeta();
+        static::$_fieldMeta = $fieldMeta; //Appologies. This is why I want to get rid of the static vars
         $numFields = count(static::$_fieldMeta);
         $fieldList = "";
         $i=1;
@@ -143,6 +153,20 @@ abstract class DataObject
         $this->_setId();        
         return $this->_rowColumns;        
     }
+    
+    /**
+     * Get records by sql query
+     * 
+     * This function will return an array of objects based upon a SQL query
+     * 
+     * @param string $sql SQL query to find records by
+     * @return array array of records returned by query
+     */
+    public function getBySql($sql) {
+        $result = static::$_db->query($sql);
+        return $result;  
+    }
+    
     
     public function deleteById($id) {
         
@@ -246,7 +270,7 @@ abstract class DataObject
 
         $result = static::$_db->query($sql);
         
-        if($result) { 
+        if($result === true) { 
             $insertId = static::$_db->getInsertId();
             $this->_id = $insertId;
             return $insertId;
@@ -257,9 +281,9 @@ abstract class DataObject
     }
     
     protected function _update() {
-     
-        $this->_setId(); //remove PK field from _rowColumns, and set in object
+//        $this->_setId(); //remove PK field from _rowColumns, and set in object
         $pkName = static::$_primaryKey;  
+        $this->_rowColumns[$pkName] = $this->_id;
 //        $this->_rowColumns['dateUpdate'] = time();
         $numFields = count($this->_rowColumns);
         $setList = "";
@@ -276,7 +300,7 @@ abstract class DataObject
         $sql = "UPDATE " .static::$_tableName ." SET \n"
              . $setList ."\n "
              . "WHERE " .$pkName ."=" .$this->_castField($pkName, $this->_id);
-        
+//print "<pre>Update: $sql </pre>\n";        
          $result = static::$_db->query($sql);
          if(!$result) {
              
@@ -311,17 +335,25 @@ abstract class DataObject
         return $this->_dbErrors;
     }
     
+    /**
+     * Get Table Metadata
+     * 
+     * Get the metadata for each field in this table from the database
+     */
     protected static function _getTableMeta() {
 
         $columns = array();
-        $sql = "   SELECT * FROM information_schema.columns "
+        $sql = "SELECT * FROM information_schema.columns "
              . "WHERE table_schema = '" .static::$_db->getDbName() ."' "
-             . "AND table_name = '" .static::$_tableName ."'"  ;
-        $rows = static::$_db->query($sql);
+             . "AND table_name = '" .static::$_tableName ."'"  ;     
+        $result = static::$_db->query($sql);
+        if($result === false) {
+            //Query to get metadata fails
+            return false;
+        }
+        $recs = static::$_db->fetch_array_set($result);
+        
         $i=0;
-
-        $recs = static::$_db->fetch_array_set($rows);
-
         $numFields = count($recs);
         for($i=0; $i<$numFields; $i++) {
             $columnName = $recs[$i]['COLUMN_NAME'];
@@ -332,8 +364,9 @@ abstract class DataObject
             if($recs[$i]['COLUMN_KEY'] == 'PRI') {
                 static::$_primaryKey = $columnName;
             }
-        }            
+        }                   
         static::$_fieldMeta= $columns;
+        return $columns;
     }
     
     
@@ -402,6 +435,16 @@ abstract class DataObject
         }
     }
 
+    /**
+     * Set id class variable
+     * 
+     * This fuction removes the primary key column from the record array,
+     * $this->_rowColumns, and set the value of the record id in the local
+     * instance varable $this->_id, if said Primary Key name exists in the
+     * record array. If it does not exist, we create it and set it to null.
+     * I am not exactly sure why we do that, as it has been a long time
+     * since I have looked at this code.
+     */
     protected function _setId() {
         $pkName = static::$_primaryKey;
         if(key_exists($pkName, $this->_rowColumns)) {
